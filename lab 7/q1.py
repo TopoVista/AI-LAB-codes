@@ -51,17 +51,6 @@ def reconstruct_path(parent, start, goal):
     path.reverse()
     return path
 
-def reconstruct_bidirectional_path(parent1, parent2, start, goal, meeting):
-    path_from_start = reconstruct_path(parent1, start, meeting)
-    path_to_goal = [meeting]
-    cur = meeting
-
-    while cur != goal:
-        cur = parent2[cur]
-        path_to_goal.append(cur)
-
-    return path_from_start + path_to_goal[1:]
-
 # -------------------------
 # NEIGHBORS
 # -------------------------
@@ -165,25 +154,35 @@ def dfs(start,goal):
 
     return path,nodes,len(path)-1
 
-# -------------------------
-# BIDIRECTIONAL SEARCH
-# -------------------------
+def dfs_recursive(start,goal):
+    parent={}
+    visited={start}
 
-def expand_frontier(queue, visited_this, visited_other, parent_this):
-    current = queue.popleft()
+    def explore(current):
+        nodes=1
 
-    if current in visited_other:
-        return current
+        if current==goal:
+            return True,nodes
 
-    for neighbor,_ in get_neighbors(current):
-        if neighbor not in visited_this:
-            visited_this.add(neighbor)
-            parent_this[neighbor]=current
-            if neighbor in visited_other:
-                return neighbor
-            queue.append(neighbor)
+        next_nodes=[]
+        for neighbor,_ in get_neighbors(current):
+            if neighbor not in visited:
+                visited.add(neighbor)
+                parent[neighbor]=current
+                next_nodes.append(neighbor)
 
-    return None
+        for neighbor in next_nodes:
+            found,child_nodes = explore(neighbor)
+            nodes+=child_nodes
+            if found:
+                return True,nodes
+
+        return False,nodes
+
+    _,nodes = explore(start)
+    path = reconstruct_path(parent, start, goal)
+
+    return path,nodes,len(path)-1
 
 def bidirectional_search(start,goal):
     if start == goal:
@@ -191,26 +190,58 @@ def bidirectional_search(start,goal):
 
     q1=deque([start])
     q2=deque([goal])
-    parent1={}
-    parent2={}
+    parent1={start:None}
+    parent2={goal:None}
     vis1={start}
     vis2={goal}
     nodes=0
+    meet=None
 
     while q1 and q2:
-        meeting = expand_frontier(q1, vis1, vis2, parent1)
         nodes+=1
-        if meeting is not None:
-            path = reconstruct_bidirectional_path(parent1, parent2, start, goal, meeting)
-            return path,nodes,len(path)-1
+        node=q1.popleft()
+        for neighbor,_ in get_neighbors(node):
+            if neighbor not in vis1:
+                vis1.add(neighbor)
+                parent1[neighbor]=node
+                q1.append(neighbor)
 
-        meeting = expand_frontier(q2, vis2, vis1, parent2)
+                if neighbor in vis2:
+                    meet=neighbor
+                    break
+        if meet is not None:
+            break
+
         nodes+=1
-        if meeting is not None:
-            path = reconstruct_bidirectional_path(parent1, parent2, start, goal, meeting)
-            return path,nodes,len(path)-1
+        node=q2.popleft()
+        for neighbor,_ in get_neighbors(node):
+            if neighbor not in vis2:
+                vis2.add(neighbor)
+                parent2[neighbor]=node
+                q2.append(neighbor)
 
-    return [],nodes,-1
+                if neighbor in vis1:
+                    meet=neighbor
+                    break
+        if meet is not None:
+            break
+
+    if meet is None:
+        return [],nodes,-1
+
+    path=[]
+    cur=meet
+    while cur is not None:
+        path.append(cur)
+        cur=parent1[cur]
+    path.reverse()
+
+    cur=parent2[meet]
+    while cur is not None:
+        path.append(cur)
+        cur=parent2[cur]
+
+    return path,nodes,len(path)-1
 
 # -------------------------
 # BEST FIRST SEARCH
@@ -349,24 +380,30 @@ if __name__=="__main__":
     path2,n2,d2=a_star(START,GOAL,euclidean,True)
     path3,n3,d3=bfs(START,GOAL)
     path4,n4,d4=dfs(START,GOAL)
-    path5,n5,d5=bidirectional_search(START,GOAL)
-    path6,n6,d6=best_first(START,GOAL,manhattan,False)
-    path7,n7,d7=ucs(START,GOAL)
+    path5,n5,d5=dfs_recursive(START,GOAL)
+    path6,n6,d6=bidirectional_search(START,GOAL)
+    path7,n7,d7=best_first(START,GOAL,manhattan,False)
+    path8,n8,d8=best_first(START,GOAL,euclidean,True)
+    path9,n9,d9=ucs(START,GOAL)
 
     print("A* Manhattan -> Nodes:",n1,"Depth:",d1)
     print("A* Euclidean -> Nodes:",n2,"Depth:",d2)
     print("BFS -> Nodes:",n3,"Depth:",d3)
     print("DFS -> Nodes:",n4,"Depth:",d4)
-    print("Bidirectional Search -> Nodes:",n5,"Depth:",d5)
-    print("Best First (Manhattan) -> Nodes:",n6,"Depth:",d6)
-    print("UCS -> Nodes:",n7,"Depth:",d7)
+    print("DFS Recursive -> Nodes:",n5,"Depth:",d5)
+    print("Bidirectional Search -> Nodes:",n6,"Depth:",d6)
+    print("Best First (Manhattan) -> Nodes:",n7,"Depth:",d7)
+    print("Best First (Euclidean) -> Nodes:",n8,"Depth:",d8)
+    print("UCS -> Nodes:",n9,"Depth:",d9)
 
     visualize([
         (path1, f"A* Manhattan\nNodes: {n1}, Depth: {d1}"),
         (path2, f"A* Euclidean\nNodes: {n2}, Depth: {d2}"),
         (path3, f"BFS\nNodes: {n3}, Depth: {d3}"),
         (path4, f"DFS\nNodes: {n4}, Depth: {d4}"),
-        (path5, f"Bidirectional Search\nNodes: {n5}, Depth: {d5}"),
-        (path6, f"Best First (Manhattan)\nNodes: {n6}, Depth: {d6}"),
-        (path7, f"UCS\nNodes: {n7}, Depth: {d7}")
+        (path5, f"DFS Recursive\nNodes: {n5}, Depth: {d5}"),
+        (path6, f"Bidirectional Search\nNodes: {n6}, Depth: {d6}"),
+        (path7, f"Best First (Manhattan)\nNodes: {n7}, Depth: {d7}"),
+        (path8, f"Best First (Euclidean)\nNodes: {n8}, Depth: {d8}"),
+        (path9, f"UCS\nNodes: {n9}, Depth: {d9}")
     ])

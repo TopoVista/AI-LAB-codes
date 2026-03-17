@@ -22,10 +22,11 @@ def best_first_search(grid, start, treasure):
 
         if (x, y) == (tx, ty):
             path = []
-            while (x, y) != (sx, sy):
-                path.append((x, y))
-                x, y = parent[(x, y)]
-            path.append((sx, sy))
+            cur = treasure
+            while cur != start:
+                path.append(cur)
+                cur = parent[cur]
+            path.append(start)
             return path[::-1]
 
         for dx, dy in directions:
@@ -37,6 +38,40 @@ def best_first_search(grid, start, treasure):
                     heapq.heappush(pq, (h(nx, ny), (nx, ny)))
 
     return None
+
+def uniform_cost_search(grid, start, treasure):
+    n, m = len(grid), len(grid[0])
+    directions = [(1,0), (-1,0), (0,1), (0,-1)]
+
+    pq = [(0, start)]
+    dist = {start: 0}
+    parent = {}
+
+    while pq:
+        cost, (x, y) = heapq.heappop(pq)
+
+        if cost > dist[(x, y)]:
+            continue
+
+        if (x, y) == treasure:
+            path = []
+            cur = treasure
+            while cur != start:
+                path.append(cur)
+                cur = parent[cur]
+            path.append(start)
+            return cost, path[::-1]
+
+        for dx, dy in directions:
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < n and 0 <= ny < m and grid[nx][ny] == 0:
+                new_cost = cost + 1
+                if (nx, ny) not in dist or new_cost < dist[(nx, ny)]:
+                    dist[(nx, ny)] = new_cost
+                    parent[(nx, ny)] = (x, y)
+                    heapq.heappush(pq, (new_cost, (nx, ny)))
+
+    return -1, None
 
 
 def main():
@@ -56,13 +91,21 @@ def main():
     print("\nStart:", start)
     print("Treasure:", treasure)
 
-    path = best_first_search(grid, start, treasure)
+    path_best = best_first_search(grid, start, treasure)
+    cost_ucs, path_ucs = uniform_cost_search(grid, start, treasure)
 
-    if path is None:
+    if path_best is None:
         print("\nTreasure not reachable.")
     else:
-        print("\nPath found:")
-        print(path)
+        print("\nBest First path:")
+        print(path_best)
+
+    if path_ucs is None:
+        print("\nUniform Cost Search could not reach the treasure.")
+    else:
+        print("\nUniform Cost Search path:")
+        print(path_ucs)
+        print("Uniform Cost Search cost:", cost_ucs)
 
 
 if __name__ == "__main__":

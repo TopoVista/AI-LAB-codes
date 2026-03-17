@@ -1,131 +1,113 @@
-import math
+import heapq
 from collections import deque
 
-# ----------------------------
-# GAME LOGIC
-# ----------------------------
-
-EMPTY = " "
-HUMAN = "O"
-AI = "X"
+EMPTY, HUMAN, AI, DRAW = " ", "O", "X", "Draw"
+WIN_LINES = ((0, 1, 2), (3, 4, 5), (6, 7, 8), (0, 3, 6),
+             (1, 4, 7), (2, 5, 8), (0, 4, 8), (2, 4, 6))
 
 def print_board(board):
-    for i in range(0,9,3):
-        print(board[i], "|", board[i+1], "|", board[i+2])
+    for i in range(0, 9, 3):
+        print(board[i], "|", board[i + 1], "|", board[i + 2])
     print()
 
 def check_winner(board):
-    wins = [(0,1,2),(3,4,5),(6,7,8),
-            (0,3,6),(1,4,7),(2,5,8),
-            (0,4,8),(2,4,6)]
-    for a,b,c in wins:
+    for a, b, c in WIN_LINES:
         if board[a] == board[b] == board[c] != EMPTY:
             return board[a]
-    if EMPTY not in board:
-        return "Draw"
-    return None
+    return DRAW if EMPTY not in board else None
 
-def get_moves(board):
-    return [i for i in range(9) if board[i] == EMPTY]
-
-# ----------------------------
-# BFS SEARCH
-# ----------------------------
-
-def bfs_search(board):
-    q = deque([(board, AI)])
-    nodes = 0
-
-    while q:
-        state, player = q.popleft()
-        nodes += 1
-
-        winner = check_winner(state)
-        if winner:
-            continue
-
-        for move in get_moves(state):
-            new_state = state[:]
+def next_states(state, player):
+    nxt = HUMAN if player == AI else AI
+    for move, cell in enumerate(state):
+        if cell == EMPTY:
+            new_state = list(state)
             new_state[move] = player
-            q.append((new_state, HUMAN if player==AI else AI))
+            new_state = tuple(new_state)
+            if check_winner(new_state) not in (HUMAN, DRAW):
+                yield new_state, nxt
 
-    return nodes
-
-# ----------------------------
-# DFS SEARCH
-# ----------------------------
-
-def dfs_search(board):
-    stack = [(board, AI)]
-    nodes = 0
-
-    while stack:
-        state, player = stack.pop()
-        nodes += 1
-
-        winner = check_winner(state)
-        if winner:
-            continue
-
-        for move in get_moves(state):
-            new_state = state[:]
-            new_state[move] = player
-            stack.append((new_state, HUMAN if player==AI else AI))
-
-    return nodes
-
-# ----------------------------
-# A* SEARCH
-# ----------------------------
+def reconstruct_path(parent, key):
+    path = []
+    while key is not None:
+        path.append(key[0])
+        key = parent[key]
+    return path[::-1]
 
 def heuristic(board):
-    # number of potential winning lines for AI
-    score = 0
-    wins = [(0,1,2),(3,4,5),(6,7,8),
-            (0,3,6),(1,4,7),(2,5,8),
-            (0,4,8),(2,4,6)]
-    for a,b,c in wins:
-        line = [board[a],board[b],board[c]]
+    if check_winner(board) == AI:
+        return 0
+    best, open_lines = 4, 0
+    for a, b, c in WIN_LINES:
+        line = (board[a], board[b], board[c])
         if HUMAN not in line:
-            score += 1
-    return -score
+            open_lines += 1
+            best = min(best, line.count(EMPTY))
+    return best if open_lines else 10
 
-def a_star(board):
-    open_set = [(0, board, AI)]
-    nodes = 0
+def search(board, mode):
+    start = (tuple(board), AI)
+    parent, nodes = {start: None}, 0
 
-    while open_set:
-        open_set.sort()
-        _, state, player = open_set.pop(0)
+    if mode == "astar":
+        fringe, best = [(heuristic(start[0]), 0, *start)], {start: 0}
+        while fringe:
+            _, depth, state, player = heapq.heappop(fringe)
+            key = (state, player)
+            if depth > best.get(key, float("inf")):
+                continue
+            nodes += 1
+            result = check_winner(state)
+            if result == AI:
+                path = reconstruct_path(parent, key)
+                return path, nodes, len(path) - 1
+            if result:
+                continue
+            for new_state, nxt in next_states(state, player):
+                next_key, cost = (new_state, nxt), depth + 1
+                if cost >= best.get(next_key, float("inf")):
+                    continue
+                best[next_key], parent[next_key] = cost, key
+                heapq.heappush(fringe, (cost + heuristic(new_state), cost, new_state, nxt))
+        return [], nodes, -1
+
+    fringe, seen = (deque([start]) if mode == "bfs" else [start]), {start}
+    while fringe:
+        key = fringe.popleft() if mode == "bfs" else fringe.pop()
+        state, player = key
         nodes += 1
-
-        winner = check_winner(state)
-        if winner:
+        result = check_winner(state)
+        if result == AI:
+            path = reconstruct_path(parent, key)
+            return path, nodes, len(path) - 1
+        if result:
             continue
+        states = list(next_states(state, player))
+        for next_key in (states if mode == "bfs" else reversed(states)):
+            if next_key not in seen:
+                seen.add(next_key)
+                parent[next_key] = key
+                fringe.append(next_key)
+    return [], nodes, -1
 
-        for move in get_moves(state):
-            new_state = state[:]
-            new_state[move] = player
-            cost = heuristic(new_state)
-            open_set.append((cost, new_state, HUMAN if player==AI else AI))
+bfs_search = lambda board: search(board, "bfs")
+dfs_search = lambda board: search(board, "dfs")
+a_star = lambda board: search(board, "astar")
 
-    return nodes
-
-# ----------------------------
-# RUN COMPARISON
-# ----------------------------
+def print_path(path):
+    if not path:
+        print("No AI-winning path found.\n")
+        return
+    for step, board in enumerate(path):
+        print(f"Move {step}:")
+        print_board(board)
 
 if __name__ == "__main__":
-
-    board = [EMPTY]*9
-
+    board = [EMPTY] * 9
     print("Initial Board:")
     print_board(board)
-
-    bfs_nodes = bfs_search(board)
-    dfs_nodes = dfs_search(board)
-    astar_nodes = a_star(board)
-
-    print("BFS explored nodes:", bfs_nodes)
-    print("DFS explored nodes:", dfs_nodes)
-    print("A* explored nodes:", astar_nodes)
+    results = [("BFS", *bfs_search(board)), ("DFS", *dfs_search(board)), ("A*", *a_star(board))]
+    for name, _, nodes, depth in results:
+        print(f"{name} explored nodes:", nodes, "| Winning depth:", depth)
+    for i, (name, path, _, _) in enumerate(results):
+        print(f"\n{name} winning path:" if i == 0 else f"{name} winning path:")
+        print_path(path)

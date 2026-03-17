@@ -1,5 +1,4 @@
 import heapq
-from collections import deque
 
 def uniform_cost_search(adj, src, dst):
     n = len(adj)
@@ -26,28 +25,37 @@ def uniform_cost_search(adj, src, dst):
     path.reverse()
     return dist[dst], path
 
-def bfs(adj, src, dst):
+def best_first_search(adj, src, dst):
     n = len(adj)
-    dist = [-1] * n
     parent = [-1] * n
-    q = deque([src])
-    dist[src] = 0
-    while q:
-        u = q.popleft()
+    visited = [False] * n
+
+    def heuristic(node):
+        return abs(dst - node)
+
+    pq = [(heuristic(src), src)]
+    visited[src] = True
+
+    while pq:
+        _, u = heapq.heappop(pq)
+        if u == dst:
+            break
         for v, _ in adj[u]:
-            if dist[v] == -1:
-                dist[v] = dist[u] + 1
+            if not visited[v]:
+                visited[v] = True
                 parent[v] = u
-                q.append(v)
-    if dist[dst] == -1:
+                heapq.heappush(pq, (heuristic(v), v))
+
+    if not visited[dst]:
         return -1, []
+
     path = []
     cur = dst
     while cur != -1:
         path.append(cur)
         cur = parent[cur]
     path.reverse()
-    return dist[dst], path
+    return len(path) - 1, path
 
 def main():
     adj = [[] for _ in range(30)]
@@ -59,9 +67,9 @@ def main():
     print("UCS cost:", cost)
     print("UCS path length:", len(path)-1, "edges")
     print("UCS path:", path)
-    dist, path_bfs = bfs(adj, src, dst)
-    print("BFS distance:", dist)
-    print("BFS path:", path_bfs)
+    steps, path_best = best_first_search(adj, src, dst)
+    print("Best First path length:", steps, "edges")
+    print("Best First path:", path_best)
 
 if __name__ == "__main__":
     main()

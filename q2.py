@@ -2,13 +2,21 @@ import heapq
 from collections import deque
 
 START, GOAL = 1, 30
-JUMPS = {3: 22, 5: 8, 11: 26, 20: 29, 17: 4, 19: 7, 21: 9, 27: 1}
+LADDERS = {3: 22, 5: 8, 11: 26, 20: 29}
+SNAKES = {17: 4, 19: 7, 21: 9, 27: 1}
+
+def apply_jump(square):
+    if square in LADDERS:
+        return LADDERS[square]
+    if square in SNAKES:
+        return SNAKES[square]
+    return square
 
 def next_states(pos):
     for dice in range(1, 7):
         raw = pos + dice
         if raw <= GOAL:
-            yield JUMPS.get(raw, raw), dice, raw
+            yield apply_jump(raw), dice, raw
 
 def reconstruct_path(parent, pos):
     path = []
@@ -21,7 +29,7 @@ def reconstruct_path(parent, pos):
 def heuristic(pos):
     if pos == GOAL:
         return 0
-    best_next = max(JUMPS.get(pos + d, pos + d) for d in range(1, 7) if pos + d <= GOAL)
+    best_next = max(apply_jump(pos + d) for d in range(1, 7) if pos + d <= GOAL)
     return (GOAL - best_next + 5) // 6
 
 def search(mode):
@@ -74,14 +82,14 @@ def print_path(path):
             continue
         jump = ""
         if raw != pos:
-            jump = f" via {'Ladder' if pos > raw else 'Snake'} {raw}->{pos}"
+            jump = f" via {'Ladder' if raw in LADDERS else 'Snake'} {raw}->{pos}"
         print(f"Move {step}: rolled {dice}, reached square {pos}{jump}")
     print()
 
 if __name__ == "__main__":
     print("Snakes and Ladders Board")
-    print("Ladders:", {k: v for k, v in JUMPS.items() if v > k})
-    print("Snakes:", {k: v for k, v in JUMPS.items() if v < k})
+    print("Ladders:", LADDERS)
+    print("Snakes:", SNAKES)
 
     results = [("BFS", *bfs_search()), ("DFS", *dfs_search()), ("A*", *a_star())]
     for name, _, nodes, depth in results:
